@@ -2,102 +2,11 @@ package server
 
 import (
 	"context"
-	"firebase.google.com/go/v4/auth"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"os"
 	"strings"
 )
-
-func (s *Server) AdminMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userC, ok := c.Get(UserKey)
-
-		if !ok {
-			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
-			c.Abort()
-			return
-		}
-
-		user, ok := userC.(*auth.UserRecord)
-
-		if !ok {
-			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
-			c.Abort()
-			return
-		}
-
-		roleC, ok := user.CustomClaims["role"]
-		if !ok {
-			s.infoLog.Println("missing role claim")
-			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
-			c.Abort()
-			return
-		}
-
-		role, ok := roleC.(string)
-		if !ok {
-			s.infoLog.Println("role conversion problem")
-			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
-			c.Abort()
-			return
-		}
-
-		if role != "admin" {
-			s.infoLog.Println("admin auth problem")
-			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
-
-func (s *Server) EditorMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userC, ok := c.Get(UserKey)
-
-		if !ok {
-			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
-			c.Abort()
-			return
-		}
-
-		user, ok := userC.(*auth.UserRecord)
-
-		if !ok {
-			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
-			c.Abort()
-			return
-		}
-
-		roleC, ok := user.CustomClaims["role"]
-		if !ok {
-			s.infoLog.Println("missing role claim")
-			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
-			c.Abort()
-			return
-		}
-
-		role, ok := roleC.(string)
-		if !ok {
-			s.infoLog.Println("role conversion problem")
-			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
-			c.Abort()
-			return
-		}
-
-		if role != "admin" && role != "editor" {
-			s.infoLog.Println("role auth problem, the role isn't admin or editor")
-			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
 
 func (s *Server) AuthWebMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -144,5 +53,34 @@ func (s *Server) AuthWebMiddleware() gin.HandlerFunc {
 
 		c.Set(UserKey, user)
 		c.Next()
+	}
+}
+
+func (s *Server) WhatAppsSessionCheck() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		session, err := s.GetWahaSession()
+
+		if err != nil {
+			s.Fail(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+			c.Abort()
+			return
+		}
+
+		if session.Status == "WORKING" {
+			c.Next()
+		}
+
+		if session.Status == "STOPPED" || session.Status == "FAILED" {
+			err := s.RestartSession()
+
+			if err != nil {
+				s.Fail(c, http.StatusBadRequest, "The session is off")
+				c.Abort()
+				return
+			}
+		}
+
+		s.Fail(c, http.StatusBadRequest, "The session is off check telegram for the login code")
+		c.Abort()
 	}
 }

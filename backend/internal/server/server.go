@@ -1,11 +1,11 @@
 package server
 
 import (
-	"github.com/Piccio-Code/AlfredEventsOranizer/backend/internal/database"
 	"context"
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"fmt"
+	"github.com/Piccio-Code/AlfredEventsOranizer/backend/internal/database"
 	"github.com/fatih/color"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/api/option"

@@ -20,7 +20,6 @@ type UserResponse struct {
 func (s *Server) registerUserRoute(rg *gin.RouterGroup) {
 	users := rg.Group("/users")
 	{
-		users.Use(s.AdminMiddleware())
 		users.GET("/list", s.ListUsersHandler)
 
 		users.POST(":uid/editor", s.CreateEditorHandler)

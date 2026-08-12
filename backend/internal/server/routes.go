@@ -84,7 +84,7 @@ func hostGuardMiddleware(allowed map[string]struct{}) gin.HandlerFunc {
 
 func (s *Server) RegisterRoutes() http.Handler {
 	r := gin.Default()
-	r.Use(hostGuardMiddleware(allowedHosts()))
+	//r.Use(hostGuardMiddleware(allowedHosts()))
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     allowedOrigins(),
@@ -110,6 +110,14 @@ func (s *Server) RegisterRoutes() http.Handler {
 		public := v1.Group("")
 		{
 			public.GET("/health", s.HealthHandler)
+			public.POST("/webhook_session", s.SessionWebHookHandler)
+
+			public.Use(s.WhatAppsSessionCheck())
+			public.GET("/test", func(c *gin.Context) {
+				s.Ok(c, nil, nil)
+				return
+			})
+
 		}
 
 	}
