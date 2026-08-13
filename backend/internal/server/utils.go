@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/hmac"
+	"crypto/sha512"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -57,4 +59,12 @@ func (s *Server) Fail(c *gin.Context, status int, message string) {
 		Success: false,
 		Error:   message,
 	})
+}
+
+func ValidMAC(message, messageMAC, key []byte) bool {
+	mac := hmac.New(sha512.New, key)
+	mac.Write(message)
+	expectedMAC := mac.Sum(nil)
+
+	return hmac.Equal(messageMAC, expectedMAC)
 }

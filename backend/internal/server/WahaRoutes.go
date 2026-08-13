@@ -28,6 +28,24 @@ type SessionWebHook struct {
 	} `json:"environment"`
 }
 
+func (s *Server) RegisterWahaRoutes(r *gin.RouterGroup) {
+	webhooks := r.Group("/webhooks")
+	{
+		webhooks.POST("/session", s.SessionWebHookHandler)
+	}
+
+	client := r.Group("")
+	{
+		client.Use(s.WahaSessionCheck())
+
+		client.GET("/test",
+			func(context *gin.Context) {
+				s.Ok(context, nil, nil)
+				return
+			})
+	}
+}
+
 func (s *Server) SessionWebHookHandler(c *gin.Context) {
 	var session SessionWebHook
 	if err := c.ShouldBindJSON(&session); err != nil {
@@ -35,8 +53,6 @@ func (s *Server) SessionWebHookHandler(c *gin.Context) {
 		s.Fail(c, http.StatusBadRequest, "Error Biding The Session")
 		return
 	}
-
-	s.infoLog.Println(session)
 
 	if session.Payload.Status == "SCAN_QR_CODE" {
 		code, err := s.getSessionCode()

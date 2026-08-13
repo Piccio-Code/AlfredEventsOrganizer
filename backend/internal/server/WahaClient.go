@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -168,7 +169,21 @@ func (s *Server) getSessionCode() (sessionCode SessionCode, err error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		s.infoLog.Println("WAHA returned status:", resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			s.infoLog.Printf(
+				"WAHA request failed: status=%d, body=<failed to read: %v>",
+				resp.StatusCode,
+				err,
+			)
+		} else {
+			s.infoLog.Printf(
+				"WAHA request failed: status=%d, body=%s",
+				resp.StatusCode,
+				strings.TrimSpace(string(body)),
+			)
+		}
+
 		return SessionCode{}, fmt.Errorf("WAHA returned status %d", resp.StatusCode)
 	}
 

@@ -1,8 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"github.com/gin-gonic/gin"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -56,7 +59,7 @@ func (s *Server) AuthWebMiddleware() gin.HandlerFunc {
 	}
 }
 
-func (s *Server) WhatAppsSessionCheck() gin.HandlerFunc {
+func (s *Server) WahaSessionCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session, err := s.GetWahaSession()
 
@@ -68,6 +71,7 @@ func (s *Server) WhatAppsSessionCheck() gin.HandlerFunc {
 
 		if session.Status == "WORKING" {
 			c.Next()
+			return
 		}
 
 		if session.Status == "STOPPED" || session.Status == "FAILED" {
@@ -82,5 +86,43 @@ func (s *Server) WhatAppsSessionCheck() gin.HandlerFunc {
 
 		s.Fail(c, http.StatusBadRequest, "The session is off check telegram for the login code")
 		c.Abort()
+	}
+}
+
+func (s *Server) WahaHMACAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		Hmac := strings.TrimSpace(c.GetHeader("X-Webhook-Hmac"))
+
+		s.infoLog.Println(Hmac)
+
+		body, err := io.ReadAll(c.Request.Body)
+
+		if err != nil {
+			s.infoLog.Println(err)
+			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
+			c.Abort()
+			return
+		}
+
+		messageMAC, err := hex.DecodeString(Hmac)
+
+		if err != nil {
+			s.infoLog.Println(err)
+			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
+			c.Abort()
+			return
+		}
+
+		isValid := ValidMAC(body, messageMAC, []byte(os.Getenv("WAHA_WEBHOOK_HMAC_KEY")))
+
+		if !isValid {
+			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
+			c.Abort()
+			return
+		}
+
+		c.Request.Body = io.NopCloser(bytes.NewReader(body))
+
+		c.Next()
 	}
 }

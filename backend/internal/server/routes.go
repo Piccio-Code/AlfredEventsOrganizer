@@ -110,13 +110,11 @@ func (s *Server) RegisterRoutes() http.Handler {
 		public := v1.Group("")
 		{
 			public.GET("/health", s.HealthHandler)
-			public.POST("/webhook_session", s.SessionWebHookHandler)
+		}
 
-			public.Use(s.WhatAppsSessionCheck())
-			public.GET("/test", func(c *gin.Context) {
-				s.Ok(c, nil, nil)
-				return
-			})
+		waha := v1.Group("/waha")
+		{
+			s.RegisterWahaRoutes(waha)
 
 		}
 
