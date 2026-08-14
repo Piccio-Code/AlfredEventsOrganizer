@@ -3,89 +3,61 @@ package server
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 )
 
-type SessionsWaha struct {
-	Name   string `json:"name"`
-	Status string `json:"status"`
-	Config struct {
-		Webhooks []struct {
-			Url    string   `json:"url"`
-			Events []string `json:"events"`
-			Hmac   struct {
-				Key interface{} `json:"key"`
-			} `json:"hmac"`
-			Retries struct {
-				DelaySeconds int    `json:"delaySeconds"`
-				Attempts     int    `json:"attempts"`
-				Policy       string `json:"policy"`
-			} `json:"retries"`
-			CustomHeaders interface{} `json:"customHeaders"`
-		} `json:"webhooks"`
-		Metadata struct {
-		} `json:"metadata"`
-		Webjs struct {
-			TagsEventsOn bool `json:"tagsEventsOn"`
-		} `json:"webjs"`
-		Client interface{} `json:"client"`
-	} `json:"config"`
-	Me struct {
-		Id               string      `json:"id"`
-		Lid              string      `json:"lid"`
-		PushName         string      `json:"pushName"`
-		ReachoutTimelock interface{} `json:"reachoutTimelock"`
-	} `json:"me"`
-	Presence   interface{} `json:"presence"`
-	Timestamps struct {
-	} `json:"timestamps"`
-	Engine struct {
-		Engine      string `json:"engine"`
-		WWebVersion string `json:"WWebVersion"`
-		State       string `json:"state"`
-	} `json:"engine"`
+type SessionResponse struct {
+	Id          string    `json:"id"`
+	Name        string    `json:"name"`
+	Status      string    `json:"status"`
+	Phone       string    `json:"phone"`
+	PushName    string    `json:"pushName"`
+	ConnectedAt time.Time `json:"connectedAt"`
+	LastActive  time.Time `json:"lastActive"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	LastError   string    `json:"lastError"`
+	Restriction struct {
+		Kind      string    `json:"kind"`
+		Code      string    `json:"code"`
+		ExpiresAt time.Time `json:"expiresAt"`
+	} `json:"restriction"`
+	EngineLoaded bool `json:"engineLoaded"`
 }
 
-type SessionCode struct {
-	Code string `json:"code"`
+type ParingCodeResponse struct {
+	PairingCode string `json:"pairingCode"`
+	Status      string `json:"status"`
 }
 
-func (s *Server) GetWahaSession() (session SessionsWaha, err error) {
-	httpClient := http.Client{Timeout: time.Duration(5) * time.Second}
-	req, err := http.NewRequest("GET", "https://waha.coursetracker.it/api/sessions/default", nil)
+func (s *Server) GetWahaSession() (session SessionResponse, err error) {
+	url := os.Getenv("OPENWA_BASE_URL") + "/api/sessions/" + os.Getenv("OPENWA_ALFRED_ID")
+	method := "GET"
+
+	client := &http.Client{}
+	req, err := http.NewRequest(method, url, nil)
+
 	if err != nil {
-		s.infoLog.Println(err)
-		return SessionsWaha{}, err
+		fmt.Println(err)
+		return
 	}
-	req.Header.Add("Accept", `application/json`)
-	req.Header.Add("X-Api-Key", os.Getenv("WAHA_API_KEY"))
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("X-API-Key", os.Getenv("OPENWA_X_API_KEY"))
 
-	resp, err := httpClient.Do(req)
+	res, err := client.Do(req)
 	if err != nil {
-		s.infoLog.Println(err)
-		return SessionsWaha{}, err
+		fmt.Println(err)
+		return
 	}
+	defer res.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return SessionsWaha{}, errors.New("bad Request")
-	}
-
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-
-		}
-	}(resp.Body)
-
-	if err := json.NewDecoder(resp.Body).Decode(&session); err != nil {
+	if err := json.NewDecoder(res.Body).Decode(&session); err != nil {
 		s.infoLog.Println(err)
-		return SessionsWaha{}, err
+		return SessionResponse{}, err
 	}
 
 	return session, nil
@@ -93,8 +65,8 @@ func (s *Server) GetWahaSession() (session SessionsWaha, err error) {
 
 func (s *Server) RestartSession() error {
 	req, err := http.NewRequest(
-		"POST",
-		"https://waha.coursetracker.it/api/sessions/default/logout",
+		"GET",
+		"https://waha.coursetracker.it/api/sessions/"+os.Getenv("OPENWA_ALFRED_ID")+"/stop",
 		nil,
 	)
 
@@ -103,7 +75,7 @@ func (s *Server) RestartSession() error {
 	}
 
 	req.Header.Add("Accept", `application/json`)
-	req.Header.Add("X-Api-Key", os.Getenv("WAHA_API_KEY"))
+	req.Header.Add("X-Api-Key", os.Getenv("OPENWA_X_API_KEY"))
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -113,7 +85,7 @@ func (s *Server) RestartSession() error {
 
 	req, err = http.NewRequest(
 		"POST",
-		"https://waha.coursetracker.it/api/sessions/default/start",
+		"https://waha.coursetracker.it/api/sessions/"+os.Getenv("OPENWA_ALFRED_ID")+"/start",
 		nil,
 	)
 
@@ -122,7 +94,7 @@ func (s *Server) RestartSession() error {
 	}
 
 	req.Header.Add("Accept", `application/json`)
-	req.Header.Add("X-Api-Key", os.Getenv("WAHA_API_KEY"))
+	req.Header.Add("X-Api-Key", os.Getenv("OPENWA_X_API_KEY"))
 
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
@@ -133,63 +105,58 @@ func (s *Server) RestartSession() error {
 	return nil
 }
 
-func (s *Server) getSessionCode() (sessionCode SessionCode, err error) {
+func (s *Server) GetSessionCode() (sessionCode ParingCodeResponse, err error) {
 	httpClient := http.Client{
-		Timeout: 5 * time.Second,
+		Timeout: 10 * time.Second,
 	}
 
 	postBody, err := json.Marshal(map[string]string{
-		"phoneNumber": "393917031610",
-		"method":      "",
+		"phoneNumber": os.Getenv("OPENWA_PHONE_NUMBER"),
 	})
 	if err != nil {
 		s.infoLog.Println(err)
-		return SessionCode{}, err
+		return ParingCodeResponse{}, err
 	}
 
 	req, err := http.NewRequest(
 		"POST",
-		"https://waha.coursetracker.it/api/default/auth/request-code",
+		os.Getenv("OPENWA_BASE_URL")+"/sessions/"+os.Getenv("OPENWA_ALFRED_ID")+"/pairing-code",
 		bytes.NewBuffer(postBody),
 	)
 	if err != nil {
 		s.infoLog.Println(err)
-		return SessionCode{}, err
+		return ParingCodeResponse{}, err
 	}
 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Api-Key", os.Getenv("WAHA_API_KEY"))
+	req.Header.Set("X-API-Key", os.Getenv("OPENWA_X_API_KEY"))
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		s.infoLog.Println(err)
-		return SessionCode{}, err
+		return ParingCodeResponse{}, err
 	}
+
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			s.infoLog.Printf(
-				"WAHA request failed: status=%d, body=<failed to read: %v>",
-				resp.StatusCode,
-				err,
-			)
-		} else {
-			s.infoLog.Printf(
-				"WAHA request failed: status=%d, body=%s",
-				resp.StatusCode,
-				strings.TrimSpace(string(body)),
-			)
-		}
-
-		return SessionCode{}, fmt.Errorf("WAHA returned status %d", resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		s.infoLog.Println(err)
+		return ParingCodeResponse{}, err
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&sessionCode); err != nil {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return ParingCodeResponse{}, fmt.Errorf(
+			"OpenWA returned status %d: %s",
+			resp.StatusCode,
+			string(body),
+		)
+	}
+
+	if err := json.Unmarshal(body, &sessionCode); err != nil {
 		s.infoLog.Println(err)
-		return SessionCode{}, err
+		return ParingCodeResponse{}, err
 	}
 
 	return sessionCode, nil

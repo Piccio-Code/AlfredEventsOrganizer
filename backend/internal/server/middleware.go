@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
@@ -69,29 +70,30 @@ func (s *Server) WahaSessionCheck() gin.HandlerFunc {
 			return
 		}
 
-		if session.Status == "WORKING" {
+		if session.Status == "ready" {
 			c.Next()
 			return
 		}
 
-		if session.Status == "STOPPED" || session.Status == "FAILED" {
-			err := s.RestartSession()
-
-			if err != nil {
-				s.Fail(c, http.StatusBadRequest, "The session is off")
-				c.Abort()
-				return
-			}
+		if session.Status == "qr_ready" {
+			s.Fail(c, http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
+			c.Abort()
+			return
 		}
 
-		s.Fail(c, http.StatusBadRequest, "The session is off check telegram for the login code")
-		c.Abort()
+		err = s.RestartSession()
+
+		if err != nil {
+			s.Fail(c, http.StatusBadRequest, fmt.Sprintf("the session has a problem Status: %v", session.Status))
+			c.Abort()
+			return
+		}
 	}
 }
 
 func (s *Server) WahaHMACAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		Hmac := strings.TrimSpace(c.GetHeader("X-Webhook-Hmac"))
+		Hmac := strings.TrimSpace(strings.Trim(c.GetHeader("x-openwa-signature"), "sha256="))
 
 		s.infoLog.Println(Hmac)
 
@@ -113,7 +115,7 @@ func (s *Server) WahaHMACAuth() gin.HandlerFunc {
 			return
 		}
 
-		isValid := ValidMAC(body, messageMAC, []byte(os.Getenv("WAHA_WEBHOOK_HMAC_KEY")))
+		isValid := ValidMAC(body, messageMAC, []byte(os.Getenv("OPENWA_WEBHOOK_HMAC_KEY")))
 
 		if !isValid {
 			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")

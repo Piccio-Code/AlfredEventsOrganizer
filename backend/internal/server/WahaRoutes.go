@@ -1,31 +1,24 @@
 package server
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/go-telegram/bot"
 	"net/http"
+	"os"
+	"time"
 )
 
 type SessionWebHook struct {
-	Event   string `json:"event"`
-	Session string `json:"session"`
-	Me      struct {
-		Id       string `json:"id"`
-		PushName string `json:"pushName"`
-	} `json:"me"`
-	Payload struct {
-		Status   string `json:"status"`
-		Statuses []struct {
-			Status    string `json:"status"`
-			Timestamp int64  `json:"timestamp"`
-		} `json:"statuses"`
-		Data interface{} `json:"data"`
-	} `json:"payload"`
-	Engine      string `json:"engine"`
-	Environment struct {
-		Version string `json:"version"`
-		Engine  string `json:"engine"`
-		Tier    string `json:"tier"`
-	} `json:"environment"`
+	Event          string    `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	SessionId      string    `json:"sessionId"`
+	IdempotencyKey string    `json:"idempotencyKey"`
+	DeliveryId     string    `json:"deliveryId"`
+	Data           struct {
+		SessionId string `json:"sessionId"`
+		Status    string `json:"status"`
+	} `json:"data"`
 }
 
 func (s *Server) RegisterWahaRoutes(r *gin.RouterGroup) {
@@ -48,19 +41,53 @@ func (s *Server) RegisterWahaRoutes(r *gin.RouterGroup) {
 
 func (s *Server) SessionWebHookHandler(c *gin.Context) {
 	var session SessionWebHook
+
 	if err := c.ShouldBindJSON(&session); err != nil {
 		s.infoLog.Println(err)
-		s.Fail(c, http.StatusBadRequest, "Error Biding The Session")
+		s.Fail(c, http.StatusBadRequest, "error binding the session")
 		return
 	}
 
-	if session.Payload.Status == "SCAN_QR_CODE" {
-		code, err := s.getSessionCode()
+	s.infoLog.Println("Session status:", session.Data.Status)
 
-		if err != nil {
-			return
-		}
-
-		s.infoLog.Println(code)
+	if session.Data.Status != "qr_ready" {
+		s.Ok(c, nil, nil)
+		return
 	}
+
+	code, err := s.GetSessionCode()
+	if err != nil {
+		s.infoLog.Println(err)
+		s.Fail(c, http.StatusInternalServerError, "error getting the WhatsApp pairing code")
+		return
+	}
+
+	if code.Status != "qr_ready" {
+		s.infoLog.Println("Unexpected pairing code status:", code.Status)
+		s.Fail(c, http.StatusInternalServerError, "WhatsApp pairing code is not ready")
+		return
+	}
+
+	_, err = s.alfredTelegram.SendMessage(
+		c.Request.Context(),
+		&bot.SendMessageParams{
+			ChatID: os.Getenv("telegram_chat_id"),
+			Text: fmt.Sprintf(
+				"🎩 <b>Autenticazione WhatsApp</b>\n\n"+
+					"Signore, il codice richiesto è il seguente:\n\n"+
+					"<code>%s</code>\n\n"+
+					"🧐 La procedura può ora essere completata.",
+				code.PairingCode,
+			),
+			ParseMode: "HTML",
+		},
+	)
+
+	if err != nil {
+		s.infoLog.Println(err)
+		s.Fail(c, http.StatusInternalServerError, "error sending the pairing code to Telegram")
+		return
+	}
+
+	s.Ok(c, nil, nil)
 }

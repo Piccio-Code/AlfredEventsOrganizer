@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/Piccio-Code/AlfredEventsOranizer/backend/internal/database"
 	"github.com/fatih/color"
+	"github.com/go-telegram/bot"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/api/option"
 	"log"
@@ -20,11 +21,12 @@ import (
 )
 
 type Server struct {
-	port       int
-	dbPool     *pgxpool.Pool
-	models     database.Models
-	authClient *auth.Client
-	infoLog    *log.Logger
+	port           int
+	dbPool         *pgxpool.Pool
+	models         database.Models
+	authClient     *auth.Client
+	infoLog        *log.Logger
+	alfredTelegram *bot.Bot
 }
 
 func NewServer() *http.Server {
@@ -59,12 +61,19 @@ func NewServer() *http.Server {
 	infoPrefix := color.New(color.FgCyan, color.Bold).SprintFunc()("[INFO]: \t")
 	infoLog := log.New(os.Stdout, infoPrefix, log.LstdFlags|log.Lshortfile)
 
+	alfred, err := bot.New(os.Getenv("TELEGRAM_ALFRED_API_KEY"))
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	NewServer := &Server{
-		port:       port,
-		dbPool:     dbPool,
-		models:     models,
-		authClient: authClient,
-		infoLog:    infoLog,
+		port:           port,
+		dbPool:         dbPool,
+		models:         models,
+		authClient:     authClient,
+		infoLog:        infoLog,
+		alfredTelegram: alfred,
 	}
 
 	// Declare Server config
