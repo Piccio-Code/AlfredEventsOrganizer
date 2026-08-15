@@ -20,6 +20,7 @@ func (s *Server) RegisterWahaRoutes(r *gin.RouterGroup) {
 		client.Use(s.WahaSessionCheck())
 
 		client.GET("/groups-list", s.ListGroups)
+
 	}
 }
 

@@ -62,7 +62,7 @@ func (s *Server) AuthWebMiddleware() gin.HandlerFunc {
 
 func (s *Server) WahaSessionCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		session, err := s.GetWahaSession()
+		session, err := s.wahaClient.GetWahaSession()
 
 		if err != nil {
 			s.Fail(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
@@ -81,7 +81,7 @@ func (s *Server) WahaSessionCheck() gin.HandlerFunc {
 			return
 		}
 
-		err = s.RestartSession()
+		err = s.wahaClient.RestartSession()
 
 		if err != nil {
 			s.Fail(c, http.StatusBadRequest, fmt.Sprintf("the session has a problem Status: %v", session.Status))

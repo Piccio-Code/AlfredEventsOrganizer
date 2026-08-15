@@ -12,11 +12,11 @@ var (
 type Models struct {
 	// Add your domain models here, e.g.:
 	// ExampleModel ExampleModel
-	DB *pgxpool.Pool
+	GroupModel GroupModel
 }
 
 func NewModels(DB *pgxpool.Pool) Models {
 	return Models{
-		DB: DB,
+		GroupModel: GroupModel{DB},
 	}
 }

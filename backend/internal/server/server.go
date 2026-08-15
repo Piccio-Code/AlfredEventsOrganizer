@@ -6,6 +6,7 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"fmt"
 	"github.com/Piccio-Code/AlfredEventsOranizer/backend/internal/database"
+	"github.com/Piccio-Code/AlfredEventsOranizer/backend/internal/waha"
 	"github.com/fatih/color"
 	"github.com/go-telegram/bot"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -27,6 +28,7 @@ type Server struct {
 	authClient     *auth.Client
 	infoLog        *log.Logger
 	alfredTelegram *bot.Bot
+	wahaClient     *waha.WahaClient
 }
 
 func NewServer() *http.Server {
@@ -67,6 +69,8 @@ func NewServer() *http.Server {
 		log.Fatal(err)
 	}
 
+	wahaClient := waha.NewWahaClient()
+
 	NewServer := &Server{
 		port:           port,
 		dbPool:         dbPool,
@@ -74,6 +78,7 @@ func NewServer() *http.Server {
 		authClient:     authClient,
 		infoLog:        infoLog,
 		alfredTelegram: alfred,
+		wahaClient:     wahaClient,
 	}
 
 	// Declare Server config

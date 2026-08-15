@@ -103,6 +103,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 			protected.Use(s.AuthWebMiddleware())
 
 			s.registerUserRoute(protected)
+			s.registerGroupRoute(protected)
 			protected.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 		}

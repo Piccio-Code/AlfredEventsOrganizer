@@ -3,6 +3,7 @@ package waha
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -110,7 +111,6 @@ func (c *WahaClient) GetSessionCode() (sessionCode ParingCodeResponse, err error
 func (c *WahaClient) GetGroupsList() (groups []GroupResponse, err error) {
 	req, err := http.NewRequest("GET", c.baseSessionURL+"/groups", nil)
 
-	fmt.Println(c.baseSessionURL + "/groups")
 	if err != nil {
 		return nil, err
 	}
@@ -141,4 +141,49 @@ func (c *WahaClient) GetGroupsList() (groups []GroupResponse, err error) {
 	}
 
 	return groups, nil
+}
+
+func (c *WahaClient) IsValidID(groupID string) error {
+	req, err := http.NewRequest("GET", c.baseSessionURL+"/groups/"+groupID, nil)
+
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("X-API-Key", c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode == 404 {
+		return errors.New("the group does not exsist")
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf(
+			"OpenWA returned status %d: %s",
+			resp.StatusCode,
+			string(body),
+		)
+	}
+
+	var groupDetail GroupDetailResponse
+
+	if err := json.Unmarshal(body, &groupDetail); err != nil {
+		return err
+	}
+
+	if len(groupDetail.Participants) == 0 {
+		return errors.New("the group does not exsist")
+	}
+
+	return nil
 }

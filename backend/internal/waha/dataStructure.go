@@ -43,3 +43,21 @@ type GroupResponse struct {
 	Name            string      `json:"name"`
 	LinkedParentJID interface{} `json:"linkedParentJID"`
 }
+
+type GroupDetailResponse struct {
+	Id              string      `json:"id"`
+	Name            string      `json:"name"`
+	Description     string      `json:"description"`
+	Owner           string      `json:"owner"`
+	CreatedAt       time.Time   `json:"createdAt"`
+	IsReadOnly      bool        `json:"isReadOnly"`
+	IsAnnounce      bool        `json:"isAnnounce"`
+	LinkedParentJID interface{} `json:"linkedParentJID"`
+	Participants    []struct {
+		Id           string `json:"id"`
+		Number       string `json:"number"`
+		Name         string `json:"name"`
+		IsAdmin      bool   `json:"isAdmin"`
+		IsSuperAdmin bool   `json:"isSuperAdmin"`
+	} `json:"participants"`
+}
