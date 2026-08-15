@@ -2,24 +2,12 @@ package server
 
 import (
 	"fmt"
+	"github.com/Piccio-Code/AlfredEventsOranizer/backend/internal/waha"
 	"github.com/gin-gonic/gin"
 	"github.com/go-telegram/bot"
 	"net/http"
 	"os"
-	"time"
 )
-
-type SessionWebHook struct {
-	Event          string    `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	SessionId      string    `json:"sessionId"`
-	IdempotencyKey string    `json:"idempotencyKey"`
-	DeliveryId     string    `json:"deliveryId"`
-	Data           struct {
-		SessionId string `json:"sessionId"`
-		Status    string `json:"status"`
-	} `json:"data"`
-}
 
 func (s *Server) RegisterWahaRoutes(r *gin.RouterGroup) {
 	webhooks := r.Group("/webhooks")
@@ -31,16 +19,12 @@ func (s *Server) RegisterWahaRoutes(r *gin.RouterGroup) {
 	{
 		client.Use(s.WahaSessionCheck())
 
-		client.GET("/test",
-			func(context *gin.Context) {
-				s.Ok(context, nil, nil)
-				return
-			})
+		client.GET("/groups-list", s.ListGroups)
 	}
 }
 
 func (s *Server) SessionWebHookHandler(c *gin.Context) {
-	var session SessionWebHook
+	var session waha.SessionWebHook
 
 	if err := c.ShouldBindJSON(&session); err != nil {
 		s.infoLog.Println(err)
@@ -55,7 +39,7 @@ func (s *Server) SessionWebHookHandler(c *gin.Context) {
 		return
 	}
 
-	code, err := s.GetSessionCode()
+	code, err := s.wahaClient.GetSessionCode()
 	if err != nil {
 		s.infoLog.Println(err)
 		s.Fail(c, http.StatusInternalServerError, "error getting the WhatsApp pairing code")
@@ -90,4 +74,16 @@ func (s *Server) SessionWebHookHandler(c *gin.Context) {
 	}
 
 	s.Ok(c, nil, nil)
+}
+
+func (s *Server) ListGroups(c *gin.Context) {
+	groups, err := s.wahaClient.GetGroupsList()
+
+	if err != nil {
+		s.infoLog.Println(err)
+		s.Fail(c, http.StatusInternalServerError, "error getting the groups")
+		return
+	}
+
+	s.Ok(c, envelop{"groups": groups}, nil)
 }
