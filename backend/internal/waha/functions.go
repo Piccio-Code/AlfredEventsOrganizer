@@ -7,233 +7,202 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 )
 
-func (c *WahaClient) setAPIHeaders(req *http.Request) {
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-API-Key", c.apiKey)
+var GroupNotFoundError = errors.New("the group does not exsist")
+
+type StatusError struct {
+	StatusCode int
+	Body       string
 }
 
-func (c *WahaClient) GetWahaSession() (session SessionResponse, err error) {
-	req, err := http.NewRequest("GET", c.baseSessionURL, nil)
-	if err != nil {
-		return SessionResponse{}, err
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("WAHA returned status %d: %s", e.StatusCode, e.Body)
+}
+
+func (c *WahaClient) doJSON(method, endpoint string, body any, out any) error {
+	var payload io.Reader
+
+	if body != nil {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+
+		payload = bytes.NewReader(encoded)
 	}
-	c.setAPIHeaders(req)
+
+	req, err := http.NewRequest(method, endpoint, payload)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Api-Key", c.apiKey)
+
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
-		return SessionResponse{}, err
+		return err
 	}
 	defer res.Body.Close()
 
-	if err := json.NewDecoder(res.Body).Decode(&session); err != nil {
+	raw, err := io.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return &StatusError{StatusCode: res.StatusCode, Body: string(raw)}
+	}
+
+	if out == nil {
+		return nil
+	}
+
+	return json.Unmarshal(raw, out)
+}
+
+func (c *WahaClient) GetWahaSession() (session SessionResponse, err error) {
+	var res newSessionResponse
+
+	if err := c.doJSON(http.MethodGet, c.sessionURL, nil, &res); err != nil {
 		return SessionResponse{}, err
 	}
 
-	return session, nil
+	return SessionResponse{
+		Name:     res.Name,
+		Status:   res.Status,
+		Phone:    res.Me.Id,
+		PushName: res.Me.PushName,
+	}, nil
 }
 
 func (c *WahaClient) RestartSession() error {
-	req, err := http.NewRequest("GET", c.baseSessionURL+"/stop", nil)
-	if err != nil {
-		return err
-	}
-	c.setAPIHeaders(req)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	req, err = http.NewRequest("POST", c.baseSessionURL+"/start", nil)
-	if err != nil {
-		return err
-	}
-	c.setAPIHeaders(req)
-
-	resp, err = c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return nil
+	return c.doJSON(http.MethodPost, c.sessionURL+"/restart", nil, nil)
 }
 
 func (c *WahaClient) GetSessionCode() (sessionCode ParingCodeResponse, err error) {
-	postBody, err := json.Marshal(map[string]string{
-		"phoneNumber": c.phoneNumber,
-	})
-	if err != nil {
+	var res newParingCode
+
+	body := map[string]string{"phoneNumber": c.phoneNumber}
+
+	if err := c.doJSON(http.MethodPost, c.apiURL+"/auth/request-code", body, &res); err != nil {
 		return ParingCodeResponse{}, err
 	}
 
-	req, err := http.NewRequest(
-		"POST",
-		c.baseSessionURL+"/pairing-code",
-		bytes.NewBuffer(postBody),
-	)
-	if err != nil {
-		return ParingCodeResponse{}, err
-	}
-
-	c.setAPIHeaders(req)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return ParingCodeResponse{}, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return ParingCodeResponse{}, err
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return ParingCodeResponse{}, fmt.Errorf(
-			"OpenWA returned status %d: %s",
-			resp.StatusCode,
-			string(body),
-		)
-	}
-
-	if err := json.Unmarshal(body, &sessionCode); err != nil {
-		return ParingCodeResponse{}, err
-	}
-
-	return sessionCode, nil
+	return ParingCodeResponse{Code: res.Code}, nil
 }
 
 func (c *WahaClient) GetGroupsList() (groups []GroupResponse, err error) {
-	req, err := http.NewRequest("GET", c.baseSessionURL+"/groups", nil)
+	var res []newGroupResponse
 
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("X-API-Key", c.apiKey)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
+	if err := c.doJSON(http.MethodGet, c.apiURL+"/groups", nil, &res); err != nil {
 		return nil, err
 	}
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf(
-			"OpenWA returned status %d: %s",
-			resp.StatusCode,
-			string(body),
-		)
-	}
+	groups = make([]GroupResponse, 0, len(res))
 
-	if err := json.Unmarshal(body, &groups); err != nil {
-		return nil, err
+	for _, group := range res {
+		name := group.Name
+		if name == "" {
+			name = group.GroupMetadata.Subject
+		}
+
+		groups = append(groups, GroupResponse{
+			Id:   group.Id.Serialized,
+			Name: name,
+		})
 	}
 
 	return groups, nil
 }
 
 func (c *WahaClient) GetGroupDetail(groupID string) (groupDetail GroupDetailResponse, err error) {
-	req, err := http.NewRequest("GET", c.baseSessionURL+"/groups/"+groupID, nil)
+	var res newGroupDetailResponse
+
+	err = c.doJSON(http.MethodGet, c.apiURL+"/groups/"+url.QueryEscape(groupID), nil, &res)
+
+	var statusErr *StatusError
+	if errors.As(err, &statusErr) && statusErr.StatusCode == http.StatusNotFound {
+		return GroupDetailResponse{}, GroupNotFoundError
+	}
 
 	if err != nil {
 		return GroupDetailResponse{}, err
 	}
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("X-API-Key", c.apiKey)
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return GroupDetailResponse{}, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return GroupDetailResponse{}, err
+	if len(res.GroupMetadata.Participants) == 0 {
+		return GroupDetailResponse{}, GroupNotFoundError
 	}
 
-	if resp.StatusCode == 404 {
-		return GroupDetailResponse{}, errors.New("the group does not exsist")
+	name := res.Name
+	if name == "" {
+		name = res.GroupMetadata.Subject
 	}
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return GroupDetailResponse{}, fmt.Errorf(
-			"OpenWA returned status %d: %s",
-			resp.StatusCode,
-			string(body),
-		)
+	groupDetail = GroupDetailResponse{
+		Id:           res.Id.Serialized,
+		Name:         name,
+		Description:  res.GroupMetadata.Desc,
+		Owner:        res.GroupMetadata.Owner.Serialized,
+		IsReadOnly:   res.IsReadOnly,
+		IsAnnounce:   res.GroupMetadata.Announce,
+		Participants: make([]GroupParticipant, 0, len(res.GroupMetadata.Participants)),
 	}
 
-	if err := json.Unmarshal(body, &groupDetail); err != nil {
-		return GroupDetailResponse{}, err
-	}
-
-	if len(groupDetail.Participants) == 0 {
-		return GroupDetailResponse{}, errors.New("the group does not exsist")
-	}
-
-	for i := 0; i < len(groupDetail.Participants); i++ {
-		participant := groupDetail.Participants[i]
+	for _, member := range res.GroupMetadata.Participants {
+		participant := GroupParticipant{
+			Id:           member.Id.Serialized,
+			Number:       member.Id.User,
+			IsAdmin:      member.IsAdmin,
+			IsSuperAdmin: member.IsSuperAdmin,
+		}
 
 		contactInfo, err := c.GetContactInfo(participant.Id)
 		if err != nil {
 			return GroupDetailResponse{}, err
 		}
 
-		if contactInfo.Name == "" {
-			participant.Name = contactInfo.Number
-		} else {
-			participant.Name = contactInfo.Name
-		}
+		participant.Name = contactName(contactInfo, participant.Number)
 
-		groupDetail.Participants[i] = participant
+		groupDetail.Participants = append(groupDetail.Participants, participant)
 	}
 
 	return groupDetail, nil
 }
 
 func (c *WahaClient) GetContactInfo(contactId string) (contactInfo ContactInfo, err error) {
-	req, err := http.NewRequest("GET", c.baseSessionURL+"/contacts/"+contactId, nil)
+	var res newContactInfo
 
-	if err != nil {
-		return ContactInfo{}, err
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-API-Key", c.apiKey)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return ContactInfo{}, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
+	if err := c.doJSON(http.MethodGet, c.apiURL+"/contacts/"+url.QueryEscape(contactId), nil, &res); err != nil {
 		return ContactInfo{}, err
 	}
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return ContactInfo{}, fmt.Errorf(
-			"OpenWA returned status %d: %s",
-			resp.StatusCode,
-			string(body),
-		)
+	return ContactInfo{
+		Id:       res.Id,
+		Number:   res.Number,
+		Name:     res.Name,
+		PushName: res.Pushname,
+	}, nil
+}
+
+func contactName(contact ContactInfo, fallback string) string {
+	if contact.Name != "" {
+		return contact.Name
 	}
 
-	if err := json.Unmarshal(body, &contactInfo); err != nil {
-		return ContactInfo{}, err
+	if contact.PushName != "" {
+		return contact.PushName
 	}
 
-	return contactInfo, nil
+	if contact.Number != "" {
+		return contact.Number
+	}
+
+	return fallback
 }

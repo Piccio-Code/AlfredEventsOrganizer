@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/Piccio-Code/AlfredEventsOranizer/backend/internal/waha"
 	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
@@ -65,17 +66,18 @@ func (s *Server) WahaSessionCheck() gin.HandlerFunc {
 		session, err := s.wahaClient.GetWahaSession()
 
 		if err != nil {
+			s.infoLog.Println(err)
 			s.Fail(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
 			c.Abort()
 			return
 		}
 
-		if session.Status == "ready" {
+		if session.Status == waha.StatusWorking {
 			c.Next()
 			return
 		}
 
-		if session.Status == "qr_ready" {
+		if session.Status == waha.StatusScanQRCode {
 			s.Fail(c, http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
 			c.Abort()
 			return
@@ -93,9 +95,7 @@ func (s *Server) WahaSessionCheck() gin.HandlerFunc {
 
 func (s *Server) WahaHMACAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		Hmac := strings.TrimSpace(strings.Trim(c.GetHeader("x-openwa-signature"), "sha256="))
-
-		s.infoLog.Println(Hmac)
+		Hmac := strings.TrimSpace(c.GetHeader("X-Webhook-Hmac"))
 
 		body, err := io.ReadAll(c.Request.Body)
 
@@ -115,7 +115,7 @@ func (s *Server) WahaHMACAuth() gin.HandlerFunc {
 			return
 		}
 
-		isValid := ValidMAC(body, messageMAC, []byte(os.Getenv("OPENWA_WEBHOOK_HMAC_KEY")))
+		isValid := ValidMAC(body, messageMAC, []byte(os.Getenv("WAHA_WEBHOOK_HMAC_KEY")))
 
 		if !isValid {
 			s.Fail(c, http.StatusUnauthorized, "Unauthorized User")
