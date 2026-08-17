@@ -45,19 +45,31 @@ type GroupResponse struct {
 }
 
 type GroupDetailResponse struct {
-	Id              string      `json:"id"`
-	Name            string      `json:"name"`
-	Description     string      `json:"description"`
-	Owner           string      `json:"owner"`
-	CreatedAt       time.Time   `json:"createdAt"`
-	IsReadOnly      bool        `json:"isReadOnly"`
-	IsAnnounce      bool        `json:"isAnnounce"`
-	LinkedParentJID interface{} `json:"linkedParentJID"`
-	Participants    []struct {
-		Id           string `json:"id"`
-		Number       string `json:"number"`
-		Name         string `json:"name"`
-		IsAdmin      bool   `json:"isAdmin"`
-		IsSuperAdmin bool   `json:"isSuperAdmin"`
-	} `json:"participants"`
+	Id              string             `json:"id"`
+	Name            string             `json:"name"`
+	Description     string             `json:"description"`
+	Owner           string             `json:"owner"`
+	CreatedAt       time.Time          `json:"createdAt"`
+	IsReadOnly      bool               `json:"isReadOnly"`
+	IsAnnounce      bool               `json:"isAnnounce"`
+	LinkedParentJID interface{}        `json:"linkedParentJID"`
+	Participants    []GroupParticipant `json:"participants"`
+}
+
+type GroupParticipant struct {
+	Id           string `json:"id"`
+	Number       string `json:"number"`
+	Name         string `json:"name"`
+	IsAdmin      bool   `json:"isAdmin"`
+	IsSuperAdmin bool   `json:"isSuperAdmin"`
+}
+
+type ContactInfo struct {
+	Id            string `json:"id"`
+	Name          string `json:"name"`
+	PushName      string `json:"pushName"`
+	Number        string `json:"number"`
+	IsMyContact   bool   `json:"isMyContact"`
+	IsBlocked     bool   `json:"isBlocked"`
+	ProfilePicUrl string `json:"profilePicUrl"`
 }

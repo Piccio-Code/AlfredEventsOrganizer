@@ -183,5 +183,57 @@ func (c *WahaClient) GetGroupDetail(groupID string) (groupDetail GroupDetailResp
 		return GroupDetailResponse{}, errors.New("the group does not exsist")
 	}
 
+	for i := 0; i < len(groupDetail.Participants); i++ {
+		participant := groupDetail.Participants[i]
+
+		contactInfo, err := c.GetContactInfo(participant.Id)
+		if err != nil {
+			return GroupDetailResponse{}, err
+		}
+
+		if contactInfo.Name == "" {
+			participant.Name = contactInfo.Number
+		} else {
+			participant.Name = contactInfo.Name
+		}
+
+		groupDetail.Participants[i] = participant
+	}
+
 	return groupDetail, nil
+}
+
+func (c *WahaClient) GetContactInfo(contactId string) (contactInfo ContactInfo, err error) {
+	req, err := http.NewRequest("GET", c.baseSessionURL+"/contacts/"+contactId, nil)
+
+	if err != nil {
+		return ContactInfo{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-API-Key", c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return ContactInfo{}, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ContactInfo{}, err
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return ContactInfo{}, fmt.Errorf(
+			"OpenWA returned status %d: %s",
+			resp.StatusCode,
+			string(body),
+		)
+	}
+
+	if err := json.Unmarshal(body, &contactInfo); err != nil {
+		return ContactInfo{}, err
+	}
+
+	return contactInfo, nil
 }

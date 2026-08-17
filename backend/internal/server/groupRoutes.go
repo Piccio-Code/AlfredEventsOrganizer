@@ -34,8 +34,7 @@ func (s *Server) CreateGroup(c *gin.Context) {
 		newGroupRequest.Title = groupDetail.Name
 	}
 
-	// TODO CREATE GROUP MEMBERS WITH GROUP
-	newGroup, err := s.models.GroupModel.Create(c.Request.Context(), newGroupRequest)
+	newGroup, err := s.models.GroupModel.Create(c.Request.Context(), newGroupRequest, groupDetail.Participants)
 
 	if err != nil {
 		s.infoLog.Println(err)
