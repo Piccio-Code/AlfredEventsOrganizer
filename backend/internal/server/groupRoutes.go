@@ -22,12 +22,19 @@ func (s *Server) CreateGroup(c *gin.Context) {
 		return
 	}
 
-	if err := s.wahaClient.IsValidID(newGroupRequest.WhatsappChatId); err != nil {
+	groupDetail, err := s.wahaClient.GetGroupDetail(newGroupRequest.WhatsappChatId)
+
+	if err != nil {
 		s.infoLog.Println(err)
-		s.Fail(c, http.StatusBadRequest, "Error verifying the group ID")
+		s.Fail(c, http.StatusBadRequest, "Error getting the group detail")
 		return
 	}
 
+	if newGroupRequest.Title == "" {
+		newGroupRequest.Title = groupDetail.Name
+	}
+
+	// TODO CREATE GROUP MEMBERS WITH GROUP
 	newGroup, err := s.models.GroupModel.Create(c.Request.Context(), newGroupRequest)
 
 	if err != nil {
