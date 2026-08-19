@@ -104,6 +104,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 			s.registerUserRoute(protected)
 			s.registerGroupRoute(protected)
+			s.registerPollTemplateRoute(protected)
 			protected.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 		}

@@ -115,7 +115,7 @@ func (s SessionWebHook) previousStatus() string {
 // BecameWorking indica che la sessione e' appena diventata operativa, cosi' la
 // notifica non parte a ogni evento WORKING che WAHA rimanda.
 func (s SessionWebHook) BecameWorking() bool {
-	return s.Payload.Status == StatusWorking && s.previousStatus() != StatusWorking
+	return s.Payload.Status == StatusWorking && s.previousStatus() == StatusScanQRCode
 }
 
 // NeedsPairing indica che WAHA sta aspettando QR code o pairing code.
