@@ -33,6 +33,7 @@ type PollTemplateOptionRequest struct {
 	Label                string `json:"label,omitempty"`
 	MotivationNeeded     *bool  `json:"motivationNeeded,omitempty"`
 	CongratulationNeeded *bool  `json:"congratulationNeeded,omitempty"`
+	SpecificationNeeded  *bool  `json:"specificationNeeded,omitempty"`
 }
 
 type PollTemplateOption struct {
@@ -42,6 +43,7 @@ type PollTemplateOption struct {
 	Position             int    `json:"position"`
 	MotivationNeeded     bool   `json:"motivationNeeded"`
 	CongratulationNeeded bool   `json:"congratulationNeeded"`
+	SpecificationNeeded  bool   `json:"specificationNeeded"`
 }
 
 type PollTemplateResponse struct {
@@ -132,7 +134,7 @@ func (m *PollTemplateModel) GetAll(ctx context.Context) ([]PollTemplateResponse,
 
 	rows.Close()
 
-	stmt = `SELECT id, template_id, label, position, motivation_needed, congratulation_needed
+	stmt = `SELECT id, template_id, label, position, motivation_needed, congratulation_needed, specification_needed
 			FROM poll_template_options
 			ORDER BY template_id, position`
 
@@ -151,6 +153,7 @@ func (m *PollTemplateModel) GetAll(ctx context.Context) ([]PollTemplateResponse,
 			&option.Position,
 			&option.MotivationNeeded,
 			&option.CongratulationNeeded,
+			&option.SpecificationNeeded,
 		)
 		if err != nil {
 			return nil, err
@@ -195,7 +198,7 @@ func (m *PollTemplateModel) GetByID(ctx context.Context, id string) (PollTemplat
 		return PollTemplateResponse{}, err
 	}
 
-	stmt = `SELECT id, template_id, label, position, motivation_needed, congratulation_needed
+	stmt = `SELECT id, template_id, label, position, motivation_needed, congratulation_needed, specification_needed
 			FROM poll_template_options
 			WHERE template_id = $1
 			ORDER BY position`
@@ -216,6 +219,7 @@ func (m *PollTemplateModel) GetByID(ctx context.Context, id string) (PollTemplat
 			&option.Position,
 			&option.MotivationNeeded,
 			&option.CongratulationNeeded,
+			&option.SpecificationNeeded,
 		)
 		if err != nil {
 			return PollTemplateResponse{}, err
@@ -321,14 +325,16 @@ func (m *PollTemplateModel) AddOptions(
 				label,
 				position,
 				motivation_needed,
-				congratulation_needed
+				congratulation_needed,
+				specification_needed
 			 )
-			 VALUES ($1, $2, $3, $4, $5)
-			 RETURNING id, template_id, label, position, motivation_needed, congratulation_needed`
+			 VALUES ($1, $2, $3, $4, $5, $6)
+			 RETURNING id, template_id, label, position, motivation_needed, congratulation_needed, specification_needed`
 
 	for index, newOption := range newOptions {
 		motivationNeeded := newOption.MotivationNeeded != nil && *newOption.MotivationNeeded
 		congratulationNeeded := newOption.CongratulationNeeded != nil && *newOption.CongratulationNeeded
+		specificationNeeded := newOption.SpecificationNeeded != nil && *newOption.SpecificationNeeded
 
 		var createdOption PollTemplateOption
 		err = tx.QueryRow(
@@ -339,6 +345,7 @@ func (m *PollTemplateModel) AddOptions(
 			lastPosition+index+1,
 			motivationNeeded,
 			congratulationNeeded,
+			specificationNeeded,
 		).Scan(
 			&createdOption.ID,
 			&createdOption.TemplateID,
@@ -346,6 +353,7 @@ func (m *PollTemplateModel) AddOptions(
 			&createdOption.Position,
 			&createdOption.MotivationNeeded,
 			&createdOption.CongratulationNeeded,
+			&createdOption.SpecificationNeeded,
 		)
 		if err != nil {
 			return nil, err
@@ -369,7 +377,7 @@ func (m *PollTemplateModel) GetOptionByID(
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	stmt := `SELECT id, template_id, label, position, motivation_needed, congratulation_needed
+	stmt := `SELECT id, template_id, label, position, motivation_needed, congratulation_needed, specification_needed
 			 FROM poll_template_options
 			 WHERE template_id = $1 AND id = $2`
 
@@ -381,6 +389,7 @@ func (m *PollTemplateModel) GetOptionByID(
 		&option.Position,
 		&option.MotivationNeeded,
 		&option.CongratulationNeeded,
+		&option.SpecificationNeeded,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PollTemplateOption{}, NotFoundError
@@ -399,13 +408,14 @@ func (m *PollTemplateModel) UpdateOption(
 	label string,
 	motivationNeeded bool,
 	congratulationNeeded bool,
+	specificationNeeded bool,
 ) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	stmt := `UPDATE poll_template_options
-			 SET label = $1, motivation_needed = $2, congratulation_needed = $3
-			 WHERE template_id = $4 AND id = $5`
+			 SET label = $1, motivation_needed = $2, congratulation_needed = $3, specification_needed = $4
+			 WHERE template_id = $5 AND id = $6`
 
 	cmd, err := m.DB.Exec(
 		ctx,
@@ -413,6 +423,7 @@ func (m *PollTemplateModel) UpdateOption(
 		label,
 		motivationNeeded,
 		congratulationNeeded,
+		specificationNeeded,
 		templateID,
 		optionID,
 	)

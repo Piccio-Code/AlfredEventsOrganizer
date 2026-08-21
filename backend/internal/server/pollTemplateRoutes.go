@@ -13,12 +13,12 @@ func (s *Server) registerPollTemplateRoute(rg *gin.RouterGroup) {
 	{
 		pollTemplates.POST("", s.CreatePollTemplate)
 		pollTemplates.GET("", s.GetPollTemplates)
+
 		pollTemplates.GET("/:id", s.GetPollTemplate)
-		pollTemplates.PATCH("/:id", s.UpdatePollTemplate)
 		pollTemplates.PUT("/:id", s.UpdatePollTemplate)
 		pollTemplates.DELETE("/:id", s.DeletePollTemplate)
+
 		pollTemplates.POST("/:id/options", s.CreatePollTemplateOptions)
-		pollTemplates.PATCH("/:id/options/:optionId", s.UpdatePollTemplateOption)
 		pollTemplates.PUT("/:id/options/:optionId", s.UpdatePollTemplateOption)
 		pollTemplates.DELETE("/:id/options/:optionId", s.DeletePollTemplateOption)
 	}
@@ -218,7 +218,8 @@ func (s *Server) UpdatePollTemplateOption(c *gin.Context) {
 
 	if updateRequest.Label == "" &&
 		updateRequest.MotivationNeeded == nil &&
-		updateRequest.CongratulationNeeded == nil {
+		updateRequest.CongratulationNeeded == nil &&
+		updateRequest.SpecificationNeeded == nil {
 		s.Fail(c, http.StatusBadRequest, "Malformed JSON")
 		return
 	}
@@ -253,6 +254,11 @@ func (s *Server) UpdatePollTemplateOption(c *gin.Context) {
 		congratulationNeeded = *updateRequest.CongratulationNeeded
 	}
 
+	specificationNeeded := option.SpecificationNeeded
+	if updateRequest.SpecificationNeeded != nil {
+		specificationNeeded = *updateRequest.SpecificationNeeded
+	}
+
 	err = s.models.PollTemplateModel.UpdateOption(
 		c.Request.Context(),
 		templateID,
@@ -260,6 +266,7 @@ func (s *Server) UpdatePollTemplateOption(c *gin.Context) {
 		label,
 		motivationNeeded,
 		congratulationNeeded,
+		specificationNeeded,
 	)
 	if errors.Is(err, database.NotFoundError) {
 		s.Fail(c, http.StatusNotFound, "Poll template option not found")
