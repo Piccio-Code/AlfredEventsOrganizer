@@ -68,7 +68,7 @@ func (c *WahaClient) doJSON(method, endpoint string, body any, out any) error {
 }
 
 func (c *WahaClient) GetWahaSession() (session SessionResponse, err error) {
-	var res newSessionResponse
+	var res NewSessionResponse
 
 	if err := c.doJSON(http.MethodGet, c.sessionURL, nil, &res); err != nil {
 		return SessionResponse{}, err
@@ -87,7 +87,7 @@ func (c *WahaClient) RestartSession() error {
 }
 
 func (c *WahaClient) GetSessionCode() (sessionCode ParingCodeResponse, err error) {
-	var res newParingCode
+	var res NewParingCode
 
 	body := map[string]string{"phoneNumber": c.phoneNumber}
 
@@ -99,7 +99,7 @@ func (c *WahaClient) GetSessionCode() (sessionCode ParingCodeResponse, err error
 }
 
 func (c *WahaClient) GetGroupsList() (groups []GroupResponse, err error) {
-	var res []newGroupResponse
+	var res []NewGroupResponse
 
 	if err := c.doJSON(http.MethodGet, c.apiURL+"/groups", nil, &res); err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func (c *WahaClient) GetGroupsList() (groups []GroupResponse, err error) {
 }
 
 func (c *WahaClient) GetGroupDetail(groupID string) (groupDetail GroupDetailResponse, err error) {
-	var res newGroupDetailResponse
+	var res NewGroupDetailResponse
 
 	err = c.doJSON(http.MethodGet, c.apiURL+"/groups/"+url.QueryEscape(groupID), nil, &res)
 
@@ -177,7 +177,7 @@ func (c *WahaClient) GetGroupDetail(groupID string) (groupDetail GroupDetailResp
 }
 
 func (c *WahaClient) GetContactInfo(contactId string) (contactInfo ContactInfo, err error) {
-	var res newContactInfo
+	var res NewContactInfo
 
 	if err := c.doJSON(http.MethodGet, c.apiURL+"/contacts/"+url.QueryEscape(contactId), nil, &res); err != nil {
 		return ContactInfo{}, err
@@ -189,6 +189,19 @@ func (c *WahaClient) GetContactInfo(contactId string) (contactInfo ContactInfo, 
 		Name:     res.Name,
 		PushName: res.Pushname,
 	}, nil
+}
+
+func (c *WahaClient) CreatePoll(newPoll NewPollRequest) (PollId string, err error) {
+
+	var res NewPollResponse
+
+	newPoll.Session = c.session
+
+	if err := c.doJSON(http.MethodPost, c.baseURL+"/sendPoll", newPoll, &res); err != nil {
+		return "", err
+	}
+
+	return res.ID.Serialized, nil
 }
 
 func contactName(contact ContactInfo, fallback string) string {

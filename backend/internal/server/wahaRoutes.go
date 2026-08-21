@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/Piccio-Code/AlfredEventsOranizer/backend/internal/database"
 	"github.com/Piccio-Code/AlfredEventsOranizer/backend/internal/waha"
 	"github.com/gin-gonic/gin"
 	"github.com/go-telegram/bot"
@@ -33,8 +34,8 @@ func (s *Server) RegisterWahaRoutes(r *gin.RouterGroup) {
 	{
 		client.Use(s.WahaSessionCheck())
 
-		client.GET("/groups-list", s.ListGroups)
-
+		client.GET("/groups-list", s.ListGroupsHandler)
+		client.POST("/poll", s.CreatePollHandler)
 	}
 }
 
@@ -95,7 +96,7 @@ func (s *Server) notifyTelegram(c *gin.Context, text string) {
 	s.Ok(c, nil, nil)
 }
 
-func (s *Server) ListGroups(c *gin.Context) {
+func (s *Server) ListGroupsHandler(c *gin.Context) {
 	groups, err := s.wahaClient.GetGroupsList()
 
 	if err != nil {
@@ -105,4 +106,23 @@ func (s *Server) ListGroups(c *gin.Context) {
 	}
 
 	s.Ok(c, envelop{"groups": groups}, nil)
+}
+
+func (s *Server) CreatePollHandler(c *gin.Context) {
+	var req database.PollRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		s.infoLog.Println(err)
+		s.Fail(c, http.StatusBadRequest, "Malformed JSON")
+		return
+	}
+
+	poll, err := s.wahaClient.CreatePoll(req.ToWahaPoll())
+	if err != nil {
+		s.infoLog.Println(err)
+		s.Fail(c, http.StatusInternalServerError, "error creating the poll")
+		return
+	}
+
+	s.Created(c, envelop{"new_poll": poll})
 }

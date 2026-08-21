@@ -123,26 +123,37 @@ func (s SessionWebHook) NeedsPairing() bool {
 	return s.Payload.Status == StatusScanQRCode
 }
 
-type newSessionResponse struct {
-	Name string `json:"name"`
-	Apps []struct {
-		Enabled bool   `json:"enabled"`
-		Id      string `json:"id"`
-		Session string `json:"session"`
-		App     string `json:"app"`
-		Config  struct {
-		} `json:"config"`
-	} `json:"apps"`
+type NewSessionResponse struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Config struct {
+		Metadata struct {
+		} `json:"metadata"`
+		Webhooks []struct {
+			Url    string   `json:"url"`
+			Events []string `json:"events"`
+			Hmac   struct {
+				Key string `json:"key"`
+			} `json:"hmac"`
+			Retries struct {
+				DelaySeconds int    `json:"delaySeconds"`
+				Attempts     int    `json:"attempts"`
+				Policy       string `json:"policy"`
+			} `json:"retries"`
+			CustomHeaders interface{} `json:"customHeaders"`
+		} `json:"webhooks"`
+		Webjs struct {
+			TagsEventsOn bool `json:"tagsEventsOn"`
+		} `json:"webjs"`
+		Client interface{} `json:"client"`
+		Debug  bool        `json:"debug"`
+	} `json:"config"`
 	Me struct {
-		Id               string `json:"id"`
-		Lid              string `json:"lid"`
-		Jid              string `json:"jid"`
-		ReachoutTimelock struct {
-			EnforcementType     string `json:"enforcementType"`
-			IsActive            bool   `json:"isActive"`
-			TimeEnforcementEnds int    `json:"timeEnforcementEnds"`
-		} `json:"reachoutTimelock"`
-		MessageCapping struct {
+		Id               string      `json:"id"`
+		Lid              string      `json:"lid"`
+		PushName         string      `json:"pushName"`
+		ReachoutTimelock interface{} `json:"reachoutTimelock"`
+		MessageCapping   struct {
 			CappingStatus string `json:"cappingStatus"`
 			TotalQuota    int    `json:"totalQuota"`
 			UsedQuota     int    `json:"usedQuota"`
@@ -151,65 +162,22 @@ type newSessionResponse struct {
 			MvStatus      string `json:"mvStatus"`
 			OteStatus     string `json:"oteStatus"`
 		} `json:"messageCapping"`
-		PushName string `json:"pushName"`
 	} `json:"me"`
-	AssignedWorker string `json:"assignedWorker"`
-	Presence       struct {
-	} `json:"presence"`
+	Presence   string `json:"presence"`
 	Timestamps struct {
-		Activity int `json:"activity"`
+		Activity int64 `json:"activity"`
 	} `json:"timestamps"`
-	Status string `json:"status"`
-	Config struct {
-		Metadata struct {
-			UserId    string `json:"user.id"`
-			UserEmail string `json:"user.email"`
-		} `json:"metadata"`
-		Proxy  interface{} `json:"proxy"`
-		Debug  bool        `json:"debug"`
-		Ignore struct {
-			Status   interface{} `json:"status"`
-			Groups   interface{} `json:"groups"`
-			Channels interface{} `json:"channels"`
-		} `json:"ignore"`
-		Client struct {
-			BrowserName string `json:"browserName"`
-			DeviceName  string `json:"deviceName"`
-		} `json:"client"`
-		Noweb struct {
-			Store struct {
-				Enabled  bool `json:"enabled"`
-				FullSync bool `json:"fullSync"`
-			} `json:"store"`
-		} `json:"noweb"`
-		Gows struct {
-			Storage struct {
-				Messages       bool `json:"messages"`
-				Groups         bool `json:"groups"`
-				Chats          bool `json:"chats"`
-				Labels         bool `json:"labels"`
-				Contacts       bool `json:"contacts"`
-				MessageSecrets bool `json:"messageSecrets"`
-			} `json:"storage"`
-		} `json:"gows"`
-		Webjs struct {
-			TagsEventsOn bool `json:"tagsEventsOn"`
-		} `json:"webjs"`
-		Webhooks []struct {
-			Url           string      `json:"url"`
-			Events        []string    `json:"events"`
-			Hmac          interface{} `json:"hmac"`
-			Retries       interface{} `json:"retries"`
-			CustomHeaders interface{} `json:"customHeaders"`
-		} `json:"webhooks"`
-	} `json:"config"`
+	Engine struct {
+		Engine      string `json:"engine"`
+		WWebVersion string `json:"WWebVersion"`
+		State       string `json:"state"`
+	} `json:"engine"`
 }
-
-type newParingCode struct {
+type NewParingCode struct {
 	Code string `json:"code"`
 }
 
-type newGroupResponse struct {
+type NewGroupResponse struct {
 	GroupMetadata struct {
 		Id struct {
 			Server     string `json:"server"`
@@ -488,7 +456,7 @@ type newGroupResponse struct {
 	} `json:"lastMessage"`
 }
 
-type newGroupDetailResponse struct {
+type NewGroupDetailResponse struct {
 	GroupMetadata struct {
 		Id struct {
 			Server     string `json:"server"`
@@ -538,7 +506,7 @@ type newGroupDetailResponse struct {
 		LastReportToAdminTimestamp    interface{}           `json:"lastReportToAdminTimestamp"`
 		HasCapi                       bool                  `json:"hasCapi"`
 		MemberShareGroupHistoryMode   string                `json:"memberShareGroupHistoryMode"`
-		Participants                  []newGroupParticipant `json:"participants"`
+		Participants                  []NewGroupParticipant `json:"participants"`
 		PendingParticipants           []interface{}         `json:"pendingParticipants"`
 		PastParticipants              []struct {
 			Id struct {
@@ -758,7 +726,7 @@ type newGroupDetailResponse struct {
 	} `json:"lastMessage"`
 }
 
-type newGroupParticipant struct {
+type NewGroupParticipant struct {
 	Id struct {
 		Server     string `json:"server"`
 		User       string `json:"user"`
@@ -770,7 +738,7 @@ type newGroupParticipant struct {
 	GroupHistorySentState int         `json:"groupHistorySentState"`
 }
 
-type newContactInfo struct {
+type NewContactInfo struct {
 	Id          string        `json:"id"`
 	Number      string        `json:"number"`
 	IsBusiness  bool          `json:"isBusiness"`
@@ -786,4 +754,22 @@ type newContactInfo struct {
 	IsWAContact bool          `json:"isWAContact"`
 	IsMyContact bool          `json:"isMyContact"`
 	IsBlocked   bool          `json:"isBlocked"`
+}
+
+type NewPollResponse struct {
+	ID struct {
+		Serialized string `json:"_serialized"`
+	} `json:"id"`
+}
+
+type PollPayload struct {
+	Name            string   `json:"name"`
+	Options         []string `json:"options"`
+	MultipleAnswers bool     `json:"multipleAnswers"`
+}
+
+type NewPollRequest struct {
+	ChatId  string      `json:"chatId"`
+	Poll    PollPayload `json:"poll"`
+	Session string      `json:"session"`
 }
