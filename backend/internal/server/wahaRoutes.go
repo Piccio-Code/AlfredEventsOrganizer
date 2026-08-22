@@ -117,12 +117,53 @@ func (s *Server) CreatePollHandler(c *gin.Context) {
 		return
 	}
 
-	poll, err := s.wahaClient.CreatePoll(req.ToWahaPoll())
+	ctx := c.Request.Context()
+
+	if req.TemplateID != "" {
+		pollTemplate, err := s.models.PollTemplateModel.GetByID(ctx, req.TemplateID)
+
+		if err != nil {
+			s.infoLog.Println(err)
+			s.Fail(c, http.StatusInternalServerError, "error getting the template")
+			return
+		}
+
+		group, err := s.models.GroupModel.GetByID(ctx, pollTemplate.GroupID)
+
+		if err != nil {
+			s.infoLog.Println(err)
+			s.Fail(c, http.StatusInternalServerError, "error getting the group")
+			return
+		}
+
+		req = pollTemplate.ToPollReq(req.ExpiresAt, group.WhatsappChatId)
+	}
+
+	newPoll, err := s.models.PollModel.Create(ctx, req)
+
 	if err != nil {
 		s.infoLog.Println(err)
 		s.Fail(c, http.StatusInternalServerError, "error creating the poll")
 		return
 	}
 
-	s.Created(c, envelop{"new_poll": poll})
+	whatsappPollID, err := s.wahaClient.CreatePoll(req.ToWahaPoll())
+
+	if err != nil {
+		s.infoLog.Println(err)
+		s.Fail(c, http.StatusInternalServerError, "error creating the poll")
+		return
+	}
+
+	newPoll.WhatsappPollId = whatsappPollID
+
+	err = s.models.PollModel.UpdateStatus(ctx, newPoll.ID, newPoll.WhatsappPollId)
+
+	if err != nil {
+		s.infoLog.Println(err)
+		s.Fail(c, http.StatusInternalServerError, "error updating the status to created")
+		return
+	}
+
+	s.Created(c, envelop{"new_poll": newPoll})
 }

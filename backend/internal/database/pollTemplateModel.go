@@ -46,6 +46,16 @@ type PollTemplateOption struct {
 	SpecificationNeeded  bool   `json:"specificationNeeded"`
 }
 
+func (r PollTemplateOption) ToPollOptionReq() (req PollOptionRequest) {
+	req.Label = r.Label
+	req.Position = r.Position
+	req.CongratulationNeeded = r.CongratulationNeeded
+	req.MotivationNeeded = r.MotivationNeeded
+	req.SpecificationNeeded = r.SpecificationNeeded
+
+	return req
+}
+
 type PollTemplateResponse struct {
 	ID             string               `json:"id,omitempty"`
 	Name           string               `json:"name,omitempty"`
@@ -54,6 +64,26 @@ type PollTemplateResponse struct {
 	MultipleChoice bool                 `json:"multipleChoice"`
 	Options        []PollTemplateOption `json:"options,omitempty"`
 	CreatedAt      time.Time            `json:"createdAt"`
+}
+
+func (r PollTemplateResponse) ToPollReq(expireTime time.Time, whatsappChatId string) (req PollRequest) {
+	req.GroupID = r.GroupID
+	req.WhatsappChatId = whatsappChatId
+	req.TemplateID = r.ID
+	req.MultipleChoice = r.MultipleChoice
+	req.ExpiresAt = expireTime
+	req.Title = r.Title
+	req.Name = r.Name
+
+	var options []PollOptionRequest
+
+	for _, option := range r.Options {
+		options = append(options, option.ToPollOptionReq())
+	}
+
+	req.Options = options
+
+	return req
 }
 
 func (m *PollTemplateModel) Create(ctx context.Context, newTemplate PollTemplateRequest) (PollTemplateDB, error) {
